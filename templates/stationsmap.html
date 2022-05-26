@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+<title>Map</title>
+<style>
+.map-folium {
+    padding-bottom:calc(100vh - 116px);
+    position:relative;
+    width:100%;
+    height:0;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+
+    <form action = "/" target="_blank" method = "post">
+        <p><input type="hidden" id="postId" name="activityfocus" value=2></p>
+        <input type="submit" class="btn btn-primary" value="Previous"/>
+    </form>
+    <div style="width:100%;"><div class="map-folium">
+        {{ map|safe }}
+
+
+{% endblock %}
