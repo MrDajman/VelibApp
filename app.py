@@ -6,17 +6,19 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, curren
 from flask_sqlalchemy import SQLAlchemy
 import folium
 import polyline
+import geopy.distance
+from shapely.geometry import LineString, Point
+import json
 #Set-ExecutionPolicy Unrestricted -Scope Process
+
+f = open("secret_codes.json")
+secret_data = json.load(f)
+f.close()
 
 app = Flask(__name__)
 app.secret_key = "hello"
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
-app.config['OAUTH_CREDENTIALS'] = {
-    'strava': {
-        'id': "63388",
-        'secret': 'cd53d9a8623c88f85fe7f59ca0c4e9a4e6c2ac5f'
-    }
-}
+cycleapi_key = secret_data["bike_routing_api_key"]
+
 headers = {"accept" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
     "accept-encoding" : "gzip, deflate, br",
     "accept-language" : "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7,pl-PL;q=0.6,pl;q=0.5",
@@ -37,12 +39,27 @@ db = SQLAlchemy(app)
 #lm = LoginManager(app)
 #lm.login_view = 'index'
 
-@app.route('/')
-def index():
-    return "Hello World!!!"
+# @app.route('/')
+# def index():
+#     return "Hello World!!!"
 
-@app.route('/stations_map/')
-def update_activities():
+@app.route('/')
+def stations_map():
+    [route_line, time_route, line] = route_map()
+    polyline_route = polyline.encode(line)
+
+    linestring_route = LineString(line)
+    #print(linestring)
+    #return "1"
+
+
+    first_point = line[0]
+    last_point = line[-1]
+
+    print(first_point, last_point)
+    print(time_route)
+
+    ### VELIB MAP ###
 
     url = "https://velib-metropole-opendata.smoove.pro/opendata/Velib_Metropole/station_information.json"
     r = requests.get(url)
@@ -68,17 +85,10 @@ def update_activities():
     stations_points = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
 
     print(r.json()["data"]["stations"][0])
-    # popup_html = """<p>Distance: {} km</p>
-    #         <p>Date: {}</p>
-    #         <form action = "{}" target="_blank" method = "post">
-    #             <p><input type="hidden" id="postId" name="nm" value={}></p>
-    #             <input type="submit" class="btn btn-primary" value="Show speed map"/>
-    #         </form>""".format()
     
-    line = polyline.decode("oxg_Iy|ppAl@wCdE}LfFsN|@_Ej@eEtAaMh@sGVuDNcDb@{PFyGdAi]FoC?q@sXQ_@?")
+    start_list = []
+    end_list = []
 
-    folium.PolyLine(line, color = "#FF0000", opacity = 1, control = False).add_to(stations_points)
-            
     for station in r.json()["data"]["stations"]:
 
         current_station_status = [station_status for station_status in stations_status if station_status["station_id"]==station["station_id"]][0]
@@ -92,20 +102,129 @@ def update_activities():
                                 current_station_status["num_bikes_available_types"][1]["ebike"],
                                 current_station_status["num_docks_available"])
 
+        #station["lat"],station["lon"]
+        #first_point
+        dist1 = geopy.distance.distance((station["lat"],station["lon"]), first_point).m
+        dist2 = geopy.distance.distance((station["lat"],station["lon"]), last_point).m
+        #print(dist)
+        dist_all = Point((station["lat"],station["lon"])).distance(linestring_route) * 1000;
+        #print(dist_all)
+        
+        # start list
+        #print(start_list)
+        if len(start_list) < 10:
+            start_list.append((station,dist1))
+        elif dist1 < start_list[-1][1]:
+            trunc_list = start_list[:-1]
+            trunc_list.append((station,dist1))
+            start_list = trunc_list
+            start_list = sorted(start_list,key=lambda i:i[1])
+        
+        #print(start_list)
+
+        if dist1 < 1000 or dist2 < 1000:
+            circle_color ="#00FF00"
+        elif dist_all < 0.3: #0.3 basically on the track; 3 - good distance
+            circle_color = "#FF0000"
+        else:
+            circle_color ="#FFBB00"
         folium.Circle((station["lat"],station["lon"]), 
-                        color = "#FF0000", 
+                        color = circle_color, 
+                        radius = 20,
+                        fill = True,
+                        tooltip = tooltip_html).add_to(stations_points)
+
+    for (station,dist) in start_list:
+        folium.Circle((station["lat"],station["lon"]), 
+                        color = "#000000", 
                         radius = 20,
                         fill = True,
                         tooltip = tooltip_html).add_to(stations_points)
 
     folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
     folium_map.add_child(stations_points)
+    folium_map.add_child(route_line)
 
     map_div = folium_map._repr_html_()
 
     return render_template("stationsmap.html", map=map_div[96:], focus_id = 2)
 
-    return "map page"
+def route_map():
+    url = "https://www.cyclestreets.net/api/journey.json"
+    r = requests.get(url, params = {"key":cycleapi_key,
+                                    "plan":"fastest",
+                                    "itinerarypoints":"2.238156,48.862088|2.403847,48.895546"})
+    print(r.url)
+    res = check_response(r)
+
+    #return("1")
+    print(res)
+    if res != 1:
+        return "Error!"#render_template("error_page.html", error_nb = res)
+    #print(r.json()["marker"][0]["@attributes"]["coordinates"])
+
+    l1 = r.json()["marker"][0]["@attributes"]["coordinates"]
+    l2 = list(l1.split(" "))
+    l3 = []
+    for item in l2:
+        temp = map(float, item.split(',')[::-1]) # needed to inverse lat and lon for line printing
+        l3.append(tuple(temp))
+        #return "1"
+    #print(l3)
+
+    time_route = (float(r.json()["marker"][0]["@attributes"]["time"])/60)
+
+    line = l3
+    start_coords = (48.855, 2.3433)
+    route_line = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
+
+    folium.PolyLine(line, color = "#0000FF", opacity = 1, control = False).add_to(route_line)
+
+    return (route_line, time_route, line)
+
+
+# @app.route('/route_map/')#route_map
+# def route_map_old():
+
+#     url = "https://www.cyclestreets.net/api/journey.json"
+#     r = requests.get(url, params = {"key":cycleapi_key,
+#                                     "plan":"fastest",
+#                                     "itinerarypoints":"2.238156,48.862088|2.403847,48.895546"})
+#     print(r.url)
+#     res = check_response(r)
+
+#     #return("1")
+#     print(res)
+#     if res != 1:
+#         return "Error!"#render_template("error_page.html", error_nb = res)
+#     #print(r.json()["marker"][0]["@attributes"]["coordinates"])
+
+#     l1 = r.json()["marker"][0]["@attributes"]["coordinates"]
+#     l2 = list(l1.split(" "))
+#     l3 = []
+#     for item in l2:
+#         temp = map(float, item.split(',')[::-1]) # needed to inverse lat and lon for line printing
+#         l3.append(tuple(temp))
+#         #return "1"
+#     #print(l3)
+
+#     time_route = (float(r.json()["marker"][0]["@attributes"]["time"])/60)
+
+#     line = l3
+#     start_coords = (48.855, 2.3433)
+#     route_line = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
+
+
+#     folium.PolyLine(line, color = "#FF0000", opacity = 1, control = False).add_to(route_line)
+
+#     folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
+#     folium_map.add_child(route_line)
+    
+
+#     map_div = folium_map._repr_html_()
+
+#     return render_template("stationsmap.html", map=map_div[96:], focus_id = 2)
+
 
 
 def check_response(response):
