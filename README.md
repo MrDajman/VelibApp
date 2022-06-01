@@ -11,3 +11,6 @@ Optimalization of the Velib Paris public bike sharing with route planning based 
 ## In progress
 - Algorithm to pick the starting station
 - Algorithm to pick the ending station
+
+## To do
+- Storing the locations of the stations in a database (refresh on a daily basis)
