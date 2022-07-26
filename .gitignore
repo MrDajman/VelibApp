@@ -131,3 +131,4 @@ dmypy.json
 secret_codes.json
 
 .webdev/
+/webdev
