@@ -38,10 +38,18 @@ headers = {"accept" : "text/html,application/xhtml+xml,application/xml;q=0.9,ima
     'upgrade-insecure-requests' : '1',
     'user-agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36'}
 
-@app.route('/')
-def stations_map():
+@app.route('/locationquery/')
+def location_query():
     location_string = "Pantin"
     get_location(location_string)
+    
+    
+    
+    return render_template("locationquery.html")
+
+
+@app.route('/')
+def stations_map():
     #"itinerarypoints":"2.238156,48.862088|2.403847,48.895546"}    
     
     plan_profile = "fastest"
