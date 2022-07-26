@@ -20,6 +20,7 @@ f.close()
 app = Flask(__name__)
 app.secret_key = "hello"
 cycleapi_key = secret_data["bike_routing_api_key"]
+positionstack_key = secret_data["positionstack_api_key"]
 
 headers = {"accept" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
     "accept-encoding" : "gzip, deflate, br",
@@ -39,8 +40,8 @@ headers = {"accept" : "text/html,application/xhtml+xml,application/xml;q=0.9,ima
 
 @app.route('/')
 def stations_map():
-
-
+    location_string = "Pantin"
+    get_location(location_string)
     #"itinerarypoints":"2.238156,48.862088|2.403847,48.895546"}    
     
     plan_profile = "fastest"
@@ -69,9 +70,6 @@ def stations_map():
 
     print(lap_change_points)
     #time
-    #math.ceil
-
-    #station_points []
 
     print(first_point, last_point)
     print(time_route)
@@ -221,6 +219,19 @@ def calculate_route(plan_profile, start_point, end_point):
     line = l3
 
     return (line, time_route)
+
+def get_location(location_string):
+    url = "http://api.positionstack.com/v1/forward"
+    
+    r = requests.get(url, params = {"access_key":positionstack_key,
+                                    "query":location_string})
+    print(r.url)
+
+    res = check_response(r)
+    print(res)
+    
+    print(r.json())
+    
 
 
 def check_response(response):
