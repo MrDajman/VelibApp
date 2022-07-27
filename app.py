@@ -47,6 +47,55 @@ def location_query():
     
     return render_template("locationquery.html")
 
+@app.route('/locationquerycheck/', methods = ['POST'])
+def location_query_check():
+
+    start_location = request.form['start_location']
+    end_location = request.form['end_location']
+
+    start_json = get_location(start_location)
+    end_json = get_location(end_location)
+
+    start_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Start Points</p>""")
+    end_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">End Points</p>""")
+    start_coords = (48.855, 2.3433)
+    folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
+    folium_map.add_child(start_points_layer)
+    folium_map.add_child(end_points_layer)
+
+    if len(start_json["data"]) == 0:
+        print("No coordinates found taht correspond to the given location")
+    else:
+        for data in start_json["data"]:
+            print(data)
+            lat = data["latitude"]
+            lon = data["longitude"]
+            
+            folium.Circle((lat,lon), 
+                        color = "#00FF00", 
+                        radius = 25,
+                        fill = True).add_to(start_points_layer)
+
+    if len(end_json["data"]) == 0:
+        print("No coordinates found taht correspond to the given location")
+    else:
+        for data in end_json["data"]:
+            print(data)
+            lat = data["latitude"]
+            lon = data["longitude"]
+            
+            folium.Circle((lat,lon), 
+                        color = "#FF0000", 
+                        radius = 25,
+                        fill = True).add_to(start_points_layer)
+
+
+    map_div = folium_map._repr_html_()
+    
+    
+    
+    return render_template("stationsmap.html", map=map_div[96:], focus_id = 2)
+
 
 @app.route('/')
 def stations_map():
@@ -77,7 +126,6 @@ def stations_map():
         lap_change_points.append(lap_change_point)
 
     print(lap_change_points)
-    #time
 
     print(first_point, last_point)
     print(time_route)
@@ -234,11 +282,11 @@ def get_location(location_string):
     r = requests.get(url, params = {"access_key":positionstack_key,
                                     "query":location_string})
     print(r.url)
-
     res = check_response(r)
-    print(res)
-    
-    print(r.json())
+    if res != 1:
+        return "Error!"
+
+    return(r.json())
     
 
 

@@ -7,9 +7,11 @@
 
 {% block body %}
 
-    <form action = "{}" target="_blank" method = "post">
+    <form action = "{{ url_for('location_query_check') }}" method = "post">
         <div class="form-group">
-        <input type="text" class="form-control" name="start_location" id="start_location" placeholder="..."/>
+        <input type="text" class="form-control" name="start_location" id="start_location" placeholder="Start location"/>
+        <input type="text" class="form-control" name="end_location" id="end_location" placeholder="End location"/>
+        <input type="submit" class="btn btn-primary btn-lg" value="GO!"/>
         </div>
     </form>
 
