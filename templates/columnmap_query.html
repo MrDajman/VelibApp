@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+<title>Map</title>
+<style>
+    * {
+        box-sizing: border-box;
+      }
+
+.map-folium {
+    padding-bottom:calc(100vh - 116px);
+    position:relative;
+    width:100%;
+    height:0;
+  }
+  .column {
+    float: left;
+    padding: 15px;
+  }
+  
+  .left {
+    width: 40%;
+  }
+  
+  .right {
+    width: 60%;
+  }
+  
+  .row:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+
+    <form action = "/" target="_blank" method = "post">
+        <p><input type="hidden" id="postId" name="activityfocus" value=2></p>
+        <input type="submit" class="btn btn-primary" value="Previous"/>
+    </form>
+
+    
+    <div class="row">
+        <div class="column left">
+            <form action = "{{ url_for('location_query_check') }}" method = "post">
+                <div class="form-group">
+                <input type="text" class="form-control" name="start_location" id="start_location" placeholder="Start location"/>
+                <input type="text" class="form-control" name="end_location" id="end_location" placeholder="End location"/>
+                <input type="submit" class="btn btn-primary btn-lg" value="GO!"/>
+                </div>
+            </form>
+
+        </div>
+        <div class="column right">
+            <div class="map-folium">
+                    {{ map|safe }}
+            </div>
+        </div>
+    </div> 
+
+{% endblock %}

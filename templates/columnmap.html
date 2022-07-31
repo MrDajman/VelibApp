@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+<title>Map</title>
+<style>
+    * {
+        box-sizing: border-box;
+      }
+
+.map-folium {
+    padding-bottom:calc(100vh - 116px);
+    position:relative;
+    width:100%;
+    height:0;
+  }
+  .column {
+    float: left;
+    padding: 15px;
+  }
+  
+  .left {
+    width: 40%;
+  }
+  
+  .right {
+    width: 60%;
+  }
+  
+  .row:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+
+    <form action = "/" target="_blank" method = "post">
+        <p><input type="hidden" id="postId" name="activityfocus" value=2></p>
+        <input type="submit" class="btn btn-primary" value="Previous"/>
+    </form>
+
+    
+    <div class="row">
+        <div class="column left">
+            <form action = "{{ url_for('route_planning_map') }}" method = "post">
+                <h1> Starting location </h1>
+                    {% for start_location in start_list %} 
+                    <div class="form-check">
+                    <label class="form-check-label">
+                    <input class="form-check-input" type="radio" name="start_locations" value="{{ start_location }}">
+                        {{ start_location.split(",,")[0] }}
+                    </label>
+                    </div>
+                    {% endfor %} 
+                <h1> End location </h1>
+                    {% for end_location in end_list %} 
+                    <div class="form-check">
+                    <label class="form-check-label">
+                    <input class="form-check-input" type="radio" name="end_locations" value="{{ end_location }}">
+                        {{ end_location.split(",,")[0] }}
+                    </label>
+                    </div>
+                    {% endfor %} 
+                <input type="submit" class="btn btn-primary btn-lg" value="Select the locations"/>
+            </form>
+
+        </div>
+        <div class="column right">
+            <div class="map-folium">
+                    {{ map|safe }}
+            </div>
+        </div>
+    </div> 
+
+{% endblock %}
