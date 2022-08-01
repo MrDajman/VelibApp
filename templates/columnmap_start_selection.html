@@ -20,16 +20,18 @@
   }
   
   .left {
-    width: 50%;
+    width: 40%;
   }
   
   .right {
-    width: 50%;
-  }
-  .row {
-    display: block;
+    width: 60%;
   }
   
+  .row:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
 </style>
 {% endblock %}
 
@@ -43,15 +45,11 @@
     
     <div class="row">
         <div class="column left">
-          <form action = "{{ url_for('start_station_choice') }}" method = "post">
-            <div class="map-folium">
-                {{ map1|safe }}
-            </div>
-          <input type="submit" class="btn btn-primary btn-lg" value="Select the locations"/>
-          </form>
+
+        </div>
         <div class="column right">
             <div class="map-folium">
-                {{ map2|safe }}
+                    {{ map|safe }}
             </div>
         </div>
     </div> 

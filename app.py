@@ -55,7 +55,7 @@ def location_query():
     return render_template("columnmap_query.html", map=map_div[96:])
 
 @app.route('/stationchoice/', methods = ['POST'])
-def station_choice():
+def start_station_choice():
 
     # retrieve queries from the html form
     start_location = request.form['start_locations']
@@ -71,7 +71,7 @@ def station_choice():
     end_point = (end_lat, end_lon)
     
     # get velib layer
-    stations_points_layer = velib_map_layer(station_choice = True)
+    stations_points_layer = velib_map_layer(station_choice = True, choice_position = start_point)
     
     # create the map
     start_coords1 = start_point
@@ -83,32 +83,67 @@ def station_choice():
     folium_map1.add_child(stations_points_layer)
     map_div1 = folium_map1._repr_html_()
     
-    start_coords2 = end_point
-    folium_map2 = folium.Map(location=start_coords2, zoom_start=16, tiles='cartodbpositron', height="100%")
-    folium.Circle(end_point, 
-            color = "#FF0000", 
-            radius = 100,
-            fill = True).add_to(folium_map2)
-    folium_map2.add_child(stations_points_layer)
-    formatter = "function(num) {return L.Util.formatNum(num, 3) + ' º ';};"
-
-    MousePosition(
-        position="topright",
-        separator=" | ",
-        empty_string="NaN",
-        lng_first=True,
-        num_digits=20,
-        prefix="Coordinates:",
-        lat_formatter=formatter,
-        lng_formatter=formatter,
-    ).add_to(folium_map2)
     
-    map_div2 = folium_map2._repr_html_()
+    # start_coords2 = end_point
+    # folium_map2 = folium.Map(location=start_coords2, zoom_start=16, tiles='cartodbpositron', height="100%")
+    # folium.Circle(end_point, 
+    #         color = "#FF0000", 
+    #         radius = 100,
+    #         fill = True).add_to(folium_map2)
+    # folium_map2.add_child(stations_points_layer)
+    
+    # map_div2 = folium_map2._repr_html_()
     
     map_div1 = map_div1.replace("position: relative;","position: static;")
-    map_div2 = map_div2.replace("position: relative;","position: static;")
+    # map_div2 = map_div2.replace("position: relative;","position: static;")
     
-    return render_template("columnmap_2maps.html", map1=map_div1[96:], map2=map_div2[96:], focus_id = 2)
+    return render_template("columnmap_2maps.html", map1=map_div1[96:], map2=map_div1[96:], focus_id = 2)
+
+@app.route('/stationchoice2/', methods = ['POST'])
+def end_station_choice():
+
+    # retrieve queries from the html form
+    station_coords = request.form['station_coords']
+    print(station_coords)
+    
+    # # retrieve the coordinates from the queries
+    # start_lat = start_location.split(",,")[1]
+    # start_lon = start_location.split(",,")[2]
+    # end_lat = end_location.split(",,")[1]
+    # end_lon = end_location.split(",,")[2]
+    
+    # start_point = (start_lat, start_lon)
+    # end_point = (end_lat, end_lon)
+    
+    # # get velib layer
+    # stations_points_layer = velib_map_layer(station_choice = True, choice_position = start_point)
+    
+    # # create the map
+    # start_coords1 = start_point
+    # folium_map1 = folium.Map(location=start_coords1, zoom_start=16, tiles='cartodbpositron', height="100%")
+    # folium.Circle(start_point, 
+    #         color = "#00FF00", 
+    #         radius = 100,
+    #         fill = True).add_to(folium_map1)
+    # folium_map1.add_child(stations_points_layer)
+    # map_div1 = folium_map1._repr_html_()
+    
+    
+    # # start_coords2 = end_point
+    # # folium_map2 = folium.Map(location=start_coords2, zoom_start=16, tiles='cartodbpositron', height="100%")
+    # # folium.Circle(end_point, 
+    # #         color = "#FF0000", 
+    # #         radius = 100,
+    # #         fill = True).add_to(folium_map2)
+    # # folium_map2.add_child(stations_points_layer)
+    
+    # # map_div2 = folium_map2._repr_html_()
+    
+    # map_div1 = map_div1.replace("position: relative;","position: static;")
+    # # map_div2 = map_div2.replace("position: relative;","position: static;")
+    
+    # return render_template("columnmap_start_selection.html", map=map_div1[96:], focus_id = 2)
+    return("Start")
 
 
 @app.route('/routeplanningmap/', methods = ['POST'])
@@ -344,7 +379,7 @@ def velib_and_route_map(plan_profile, start_point, end_point):
     return(map_div)
 
 
-def velib_map_layer(station_choice = False):
+def velib_map_layer(station_choice = False, choice_position =(0,0)):
 
     ### VELIB MAP ###
     url = "https://velib-metropole-opendata.smoove.pro/opendata/Velib_Metropole/station_information.json"
@@ -367,15 +402,23 @@ def velib_map_layer(station_choice = False):
 
 
     for station in r_station_information.json()["data"]["stations"]:
+        if station_choice:
+            distance_to_point = geopy.distance.distance((station["lat"],station["lon"]), choice_position).m
+            if distance_to_point > 1000:
+                continue
 
         current_station_status = [station_status for station_status in stations_status if station_status["station_id"]==station["station_id"]][0]
         tooltip_html = ""
         popup_html = None
         if station_choice:
             popup_html = """<p>Name: {}</p>
-                            <label class="form-check-label">
-                            <input class="form-check-input" type="radio" name="chosen_start" value="XXX">
-                            """.format(station["name"])
+                            <form action = "{}" method = "post">
+                                <input type="hidden" id="station_coords" name="station_coords" value={}>
+                                <input type="submit" class="btn btn-primary btn-lg" value="Select this station"/>
+                            </form>
+                            """.format(station["name"],
+                                url_for('end_station_choice'),
+                                str(station["lat"])+",,"+str(station["lon"]))
                             
         tooltip_html = """<p>Name: {}</p>
                         <p>Mechanical Bikes Available: {}</p>
