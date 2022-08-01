@@ -12,6 +12,7 @@ from shapely.geometry import LineString, Point
 import json
 import math
 from folium.plugins import MousePosition
+from datetime import datetime
 #Set-ExecutionPolicy Unrestricted -Scope Process
 
 f = open("secret_codes.json")
@@ -46,11 +47,14 @@ def location_query():
     stations_points_layer = velib_map_layer()
     
     # create map
+    
+    print("INFO[{}]:\tCreating Velib map".format(datetime.now().time()))
     start_coords = (48.855, 2.3433)
     folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
     folium_map.add_child(stations_points_layer)
 
     map_div = folium_map._repr_html_()
+    print("INFO[{}]:\tVelib map created".format(datetime.now().time()))
     
     return render_template("columnmap_query.html", map=map_div[96:])
 
@@ -70,8 +74,11 @@ def start_station_choice():
     start_point = (start_lat, start_lon)
     end_point = (end_lat, end_lon)
     
+    session["start_point"] = start_point
+    session["end_point"] = end_point
+    
     # get velib layer
-    stations_points_layer = velib_map_layer(station_choice = True, choice_position = start_point)
+    stations_points_layer_start = velib_map_layer(station_choice_start = True, choice_position = start_point)
     
     # create the map
     start_coords1 = start_point
@@ -80,30 +87,40 @@ def start_station_choice():
             color = "#00FF00", 
             radius = 100,
             fill = True).add_to(folium_map1)
-    folium_map1.add_child(stations_points_layer)
+    folium_map1.add_child(stations_points_layer_start)
     map_div1 = folium_map1._repr_html_()
     
+    # get velib layer
+    stations_points_layer_end = velib_map_layer(station_choice_end = True, choice_position = end_point)
     
-    # start_coords2 = end_point
-    # folium_map2 = folium.Map(location=start_coords2, zoom_start=16, tiles='cartodbpositron', height="100%")
-    # folium.Circle(end_point, 
-    #         color = "#FF0000", 
-    #         radius = 100,
-    #         fill = True).add_to(folium_map2)
-    # folium_map2.add_child(stations_points_layer)
+    start_coords2 = end_point
+    folium_map2 = folium.Map(location=start_coords2, zoom_start=16, tiles='cartodbpositron', height="100%")
+    folium.Circle(end_point, 
+            color = "#FF0000", 
+            radius = 100,
+            fill = True).add_to(folium_map2)
+    folium_map2.add_child(stations_points_layer_end)
     
-    # map_div2 = folium_map2._repr_html_()
+    map_div2 = folium_map2._repr_html_()
     
     map_div1 = map_div1.replace("position: relative;","position: static;")
-    # map_div2 = map_div2.replace("position: relative;","position: static;")
+    map_div2 = map_div2.replace("position: relative;","position: static;")
     
-    return render_template("columnmap_2maps.html", map1=map_div1[96:], map2=map_div1[96:], focus_id = 2)
+    return render_template("columnmap_2maps.html", map1=map_div1[96:], map2=map_div2[96:], focus_id = 2)
 
 @app.route('/stationchoice2/', methods = ['POST'])
 def end_station_choice():
 
     # retrieve queries from the html form
     station_coords = request.form['station_coords']
+    station_coords_split = station_coords.split(",,")
+    print(station_coords_split)
+    if station_coords_split[0] == "True":
+        print("Start location session")
+        session["start_station"] = (station_coords_split[1],station_coords_split[2])
+    if station_coords_split[0] != "True":
+        print("End location session")
+        session["end_station"] = (station_coords_split[1],station_coords_split[2])
     print(station_coords)
     
     # # retrieve the coordinates from the queries
@@ -174,15 +191,23 @@ def route_planning_map():
 def location_query_check():
 
     # retrieve choice of the location (html radio form)
+    
+    print("INFO[{}]:\tRetrieving adress from a form".format(datetime.now().time()))
     start_location = request.form['start_location']
     end_location = request.form['end_location']
 
     # create the start points layer
+    print("INFO[{}]:\tCreate Start/End point layer".format(datetime.now().time()))
     [start_points_layer, end_points_layer, start_list_to_html, end_list_to_html] = start_end_points_layer(start_location, end_location)
+    print("INFO[{}]:\tCompleted Start/End point layer".format(datetime.now().time()))
     # create velib points layer
+    print("INFO[{}]:\tCreate velib map layer".format(datetime.now().time()))
     stations_points_layer = velib_map_layer()
+    print("INFO[{}]:\tCompleted velib map layer".format(datetime.now().time()))
     
     # create the map
+    
+    print("INFO[{}]:\tCreate map".format(datetime.now().time()))
     start_coords = (48.855, 2.3433)
     folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
     folium_map.add_child(start_points_layer)
@@ -190,6 +215,7 @@ def location_query_check():
     folium_map.add_child(stations_points_layer)
 
     map_div = folium_map._repr_html_()
+    print("INFO[{}]:\tCompleted map".format(datetime.now().time()))
     
     return render_template("columnmap.html", 
                            map=map_div[96:], 
@@ -197,9 +223,61 @@ def location_query_check():
                            end_list=end_list_to_html)
 
 
+@app.route('/confirmstations/', methods = ['POST'])
+def confirm_stations():
+    print(session["start_station"])
+    print(session["end_station"])
+    
+    stations_points_layer = velib_map_layer()
+    
+    start_station = session["start_station"]
+    end_station = session["end_station"]
+    #print("Start station:")
+    #print(start_station)
+    [route_line, time_route] = calculate_route("fastest", reversed(start_station), reversed(end_station))
+
+    route_line_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Route line</p>""")
+
+    folium.PolyLine(route_line, color = "#0000FF", opacity = 1, control = False).add_to(route_line_layer)
+
+    linestring_route = LineString(route_line)
+
+    first_point = route_line[0]
+    last_point = route_line[-1]
+
+    target_lap_time = 25
+    estimated_laps = math.ceil(time_route / float(target_lap_time))
+
+    lap_change_points = []
+    for i in range(estimated_laps-1):
+        lap_change_point = route_line[int((len(route_line)/estimated_laps)*(i+1))]
+        lap_change_points.append(lap_change_point)
+
+    print(lap_change_points)
+
+    print(first_point, last_point)
+    print(time_route)
+    print(estimated_laps)
+
+    start_coords = (48.855, 2.3433)
+
+    folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
+    folium_map.add_child(stations_points_layer)
+    folium_map.add_child(route_line_layer)
+    
+    map_div = folium_map._repr_html_()
+    
+    return render_template("stationsmap.html", 
+                           map=map_div[96:])
+
+
 def start_end_points_layer(start_location, end_location):
+    
+    print("INFO[{}]:\tGetting start location".format(datetime.now().time()))
     start_json = get_location(start_location)
+    print("INFO[{}]:\tGetting end location".format(datetime.now().time()))
     end_json = get_location(end_location)
+    print("INFO[{}]:\tCompleted getting end location".format(datetime.now().time()))
 
     start_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Start Points</p>""")
     end_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">End Points</p>""")
@@ -211,7 +289,10 @@ def start_end_points_layer(start_location, end_location):
         print("No coordinates found that correspond to the given location")
     else:
         for data in start_json["data"]:
-            #print(data)
+            print()
+            print(data)
+            print()
+            #print(data["data"])
             lat = data["latitude"]
             lon = data["longitude"]
             
@@ -379,30 +460,36 @@ def velib_and_route_map(plan_profile, start_point, end_point):
     return(map_div)
 
 
-def velib_map_layer(station_choice = False, choice_position =(0,0)):
+def velib_map_layer(station_choice_start = False, station_choice_end = False, choice_position =(0,0)):
 
     ### VELIB MAP ###
+    
+    print("INFO[{}]:\tRetrieving Velib station information".format(datetime.now().time()))
     url = "https://velib-metropole-opendata.smoove.pro/opendata/Velib_Metropole/station_information.json"
     r_station_information = requests.get(url)
     res = check_response(r_station_information)
-    print(res)
+    print("INFO[{}]:\tVelib station information retrieved".format(datetime.now().time()))
+    # print(res)
     if res != 1:
         return "Error!"#render_template("error_page.html", error_nb = res)
     
     #station status thing
+    print("INFO[{}]:\tRetrieving Velib station status".format(datetime.now().time()))
     url = "https://velib-metropole-opendata.smoove.pro/opendata/Velib_Metropole/station_status.json"
     r_station_status = requests.get(url)
     res = check_response(r_station_status)
-    print(res)
+    print("INFO[{}]:\tVelib station status retrieved".format(datetime.now().time()))
+    # print(res)
     if res != 1:
         return "Error!"#render_template("error_page.html", error_nb = res)
     
     stations_status = r_station_status.json()["data"]["stations"]
     stations_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
 
-
+    
+    print("INFO[{}]:\tPrinting velib circles on the layer".format(datetime.now().time()))
     for station in r_station_information.json()["data"]["stations"]:
-        if station_choice:
+        if station_choice_start or station_choice_end:
             distance_to_point = geopy.distance.distance((station["lat"],station["lon"]), choice_position).m
             if distance_to_point > 1000:
                 continue
@@ -410,7 +497,7 @@ def velib_map_layer(station_choice = False, choice_position =(0,0)):
         current_station_status = [station_status for station_status in stations_status if station_status["station_id"]==station["station_id"]][0]
         tooltip_html = ""
         popup_html = None
-        if station_choice:
+        if station_choice_start or station_choice_end:
             popup_html = """<p>Name: {}</p>
                             <form action = "{}" method = "post">
                                 <input type="hidden" id="station_coords" name="station_coords" value={}>
@@ -418,7 +505,11 @@ def velib_map_layer(station_choice = False, choice_position =(0,0)):
                             </form>
                             """.format(station["name"],
                                 url_for('end_station_choice'),
-                                str(station["lat"])+",,"+str(station["lon"]))
+                                str(station_choice_start)+",,"+str(station["lat"])+",,"+str(station["lon"]))
+        # if station_choice_start:
+        #     session["start_station"] = (station["lat"],station["lon"])
+        # if station_choice_end:
+        #     session["end_station"] = (station["lat"],station["lon"])
                             
         tooltip_html = """<p>Name: {}</p>
                         <p>Mechanical Bikes Available: {}</p>
@@ -429,14 +520,14 @@ def velib_map_layer(station_choice = False, choice_position =(0,0)):
                                 current_station_status["num_bikes_available_types"][1]["ebike"],
                                 current_station_status["num_docks_available"])
         
-
-
         folium.Circle((station["lat"],station["lon"]), 
                         color = "#FFBB00", 
                         radius = 20,
                         fill = True,
                         tooltip = tooltip_html,
                         popup = popup_html).add_to(stations_points_layer)
+        
+    print("INFO[{}]:\tFinished printing velib circles on the layer".format(datetime.now().time()))
 
     return(stations_points_layer)
 
@@ -606,6 +697,8 @@ def calculate_route(plan_profile, start_point, end_point):
     if res != 1:
         return "Error!"
 
+    print(r.json())
+    
     l1 = r.json()["marker"][0]["@attributes"]["coordinates"]
     l2 = list(l1.split(" "))
     l3 = []
@@ -626,7 +719,7 @@ def get_location(location_string):
                                     "query":location_string})
     print(r.url)
     res = check_response(r)
-    print(r)
+    # print(r)
     if res != 1:
         return "Error!"
     print(r.json())
@@ -636,7 +729,7 @@ def get_location(location_string):
 
 def check_response(response):
     if response.ok:
-        print("INFO:\tSuccessfully retrieved request")
+        print("INFO[{}]:\tSuccessfully retrieved request".format(datetime.now().time()))
         return 1
     else:
         print(response)
