@@ -12,7 +12,9 @@ from shapely.geometry import LineString, Point
 import json
 import math
 from folium.plugins import MousePosition
+from folium.features import DivIcon
 from datetime import datetime
+import seaborn as sns
 #Set-ExecutionPolicy Unrestricted -Scope Process
 
 f = open("secret_codes.json")
@@ -23,6 +25,7 @@ app = Flask(__name__)
 app.secret_key = "hello"
 cycleapi_key = secret_data["bike_routing_api_key"]
 positionstack_key = secret_data["positionstack_api_key"]
+geoapify_key = secret_data["geoapify_api_key"]
 
 # headers = {"accept" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
 #     "accept-encoding" : "gzip, deflate, br",
@@ -273,54 +276,98 @@ def confirm_stations():
 
 def start_end_points_layer(start_location, end_location):
     
+    api = 2
     print("INFO[{}]:\tGetting start location".format(datetime.now().time()))
-    start_json = get_location(start_location)
+    if api == 2:
+        start_json = get_location2(start_location)
+    else:
+        start_json = get_location(start_location)
     print("INFO[{}]:\tGetting end location".format(datetime.now().time()))
-    end_json = get_location(end_location)
+    if api == 2:
+        end_json = get_location2(end_location)
+    else:
+        end_json = get_location(end_location)
     print("INFO[{}]:\tCompleted getting end location".format(datetime.now().time()))
 
     start_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Start Points</p>""")
     end_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">End Points</p>""")
     
-    
     start_list_to_html = []
     end_list_to_html = []
-    if len(start_json["data"]) == 0:
-        print("No coordinates found that correspond to the given location")
-    else:
-        for data in start_json["data"]:
-            print()
-            print(data)
-            print()
-            #print(data["data"])
-            lat = data["latitude"]
-            lon = data["longitude"]
-            
-            name = data["name"]
-            locality = data["locality"]
-            start_list_to_html.append(name+", "+locality+",,"+str(lat)+",,"+str(lon))
-            
-            folium.Circle((lat,lon), 
-                        color = "#00FF00", 
-                        radius = 200,
-                        fill = True).add_to(start_points_layer)
 
-    if len(end_json["data"]) == 0:
-        print("No coordinates found taht correspond to the given location")
+    if api == 2:
+        print(start_json["features"])
+        if len(start_json["features"]) == 0:
+            print("No coordinates found that correspond to the given location")
+        else:
+            for data in start_json["features"]:
+                formatted = data["properties"]["formatted"]
+
+                lat = data["properties"]["lat"]
+                lon = data["properties"]["lon"]
+                
+                start_list_to_html.append(formatted+",,"+str(lat)+",,"+str(lon))
+                
+                folium.Circle((lat,lon), 
+                            color = "#00FF00", 
+                            radius = 200,
+                            fill = True).add_to(start_points_layer)
+        
+        
+        if len(end_json["features"]) == 0:
+            print("No coordinates found that correspond to the given location")
+        else:
+            for data in end_json["features"]:
+                formatted = data["properties"]["formatted"]
+
+                lat = data["properties"]["lat"]
+                lon = data["properties"]["lon"]
+                
+                end_list_to_html.append(formatted+",,"+str(lat)+",,"+str(lon))
+                
+                folium.Circle((lat,lon), 
+                            color = "#FF0000", 
+                            radius = 200,
+                            fill = True).add_to(end_points_layer)
+    
+    
     else:
-        for data in end_json["data"]:
-            #print(data)
-            lat = data["latitude"]
-            lon = data["longitude"]
-            
-            name = data["name"]
-            locality = data["locality"]
-            end_list_to_html.append(name+", "+locality+",,"+str(lat)+",,"+str(lon))
-            
-            folium.Circle((lat,lon), 
-                        color = "#FF0000", 
-                        radius = 200,
-                        fill = True).add_to(end_points_layer)
+        if len(start_json["data"]) == 0:
+            print("No coordinates found that correspond to the given location")
+        else:
+            for data in start_json["data"]:
+                print()
+                print(data)
+                print()
+                #print(data["data"])
+                lat = data["latitude"]
+                lon = data["longitude"]
+                
+                name = data["name"]
+                locality = data["locality"]
+                start_list_to_html.append(name+", "+locality+",,"+str(lat)+",,"+str(lon))
+                
+                folium.Circle((lat,lon), 
+                            color = "#00FF00", 
+                            radius = 200,
+                            fill = True).add_to(start_points_layer)
+
+        if len(end_json["data"]) == 0:
+            print("No coordinates found taht correspond to the given location")
+        else:
+            for data in end_json["data"]:
+                #print(data)
+                lat = data["latitude"]
+                lon = data["longitude"]
+                
+                name = data["name"]
+                locality = data["locality"]
+                end_list_to_html.append(name+", "+locality+",,"+str(lat)+",,"+str(lon))
+                
+                folium.Circle((lat,lon), 
+                            color = "#FF0000", 
+                            radius = 200,
+                            fill = True).add_to(end_points_layer)
     
     return([start_points_layer, end_points_layer, start_list_to_html, end_list_to_html])
 
@@ -486,7 +533,6 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
     stations_status = r_station_status.json()["data"]["stations"]
     stations_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
 
-    
     print("INFO[{}]:\tPrinting velib circles on the layer".format(datetime.now().time()))
     for station in r_station_information.json()["data"]["stations"]:
         if station_choice_start or station_choice_end:
@@ -494,16 +540,33 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
             if distance_to_point > 1000:
                 continue
 
+
         current_station_status = [station_status for station_status in stations_status if station_status["station_id"]==station["station_id"]][0]
         tooltip_html = ""
         popup_html = None
+        total_score = 50
+
+        if station_choice_start:
+            distance_score = 1000 - distance_to_point
+            bike_score = min(int(current_station_status["num_bikes_available_types"][0]["mechanical"])*2,10)
+            total_score = round(float(distance_score * bike_score)/100.0)
+        
+        
+        if station_choice_end:
+            distance_score = 1000 - distance_to_point
+            dock_score = min(int(current_station_status["num_docks_available"])*2,10)
+            total_score = round(float(distance_score * dock_score)/100.0)
+
         if station_choice_start or station_choice_end:
+
             popup_html = """<p>Name: {}</p>
+                            <p>Station score: {}%</p>
                             <form action = "{}" method = "post">
                                 <input type="hidden" id="station_coords" name="station_coords" value={}>
                                 <input type="submit" class="btn btn-primary btn-lg" value="Select this station"/>
                             </form>
                             """.format(station["name"],
+                                total_score,
                                 url_for('end_station_choice'),
                                 str(station_choice_start)+",,"+str(station["lat"])+",,"+str(station["lon"]))
         # if station_choice_start:
@@ -519,13 +582,26 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
                                 current_station_status["num_bikes_available_types"][0]["mechanical"],
                                 current_station_status["num_bikes_available_types"][1]["ebike"],
                                 current_station_status["num_docks_available"])
-        
+  
+        palette = list(sns.color_palette("gist_rainbow", 300).as_hex())
+
         folium.Circle((station["lat"],station["lon"]), 
-                        color = "#FFBB00", 
+                        # color = "#FFBB00", 
+                        color = palette[total_score], 
                         radius = 20,
                         fill = True,
                         tooltip = tooltip_html,
                         popup = popup_html).add_to(stations_points_layer)
+
+        # folium.Circle(
+        #                 (station["lat"],station["lon"]),
+        #                 radius = 10,
+        #                 icon=DivIcon(
+        #                     icon_size=(250,36),
+        #                     icon_anchor=(0,0),
+        #                     html='<div style="font-size: 20pt">{}</div>'.format(total_score),
+        #                     )
+        #                 ).add_to(stations_points_layer)
         
     print("INFO[{}]:\tFinished printing velib circles on the layer".format(datetime.now().time()))
 
@@ -713,19 +789,46 @@ def calculate_route(plan_profile, start_point, end_point):
     return (line, time_route)
 
 def get_location(location_string):
+
     url = "http://api.positionstack.com/v1/forward"
     
     r = requests.get(url, params = {"access_key":positionstack_key,
                                     "query":location_string})
+    
     print(r.url)
     res = check_response(r)
+    print(r)
+    print(r.json())
+    print(res)
     # print(r)
     if res != 1:
         return "Error!"
     print(r.json())
+    #exit()
+    return(r.json())
+
+def get_location2(location_string):
+
+    #https://api.geoapify.com/v1/geocode/search?text=30%20Rue%20Etienne%20Marcel%20France&apiKey=23a88986ab3a487b92419472b008cbb5
+    url = "https://api.geoapify.com/v1/geocode/search"
+    
+    r = requests.get(url, params = {"apiKey":geoapify_key,
+                                    "text":location_string})
+    
+    print(r.url)
+    res = check_response(r)
+    print(r)
+    print(r.json())
+    print(res)
+    # print(r)
+    if res != 1:
+        return "Error!"
+    print(r.json())
+    #exit()
     return(r.json())
     
 
+        
 
 def check_response(response):
     if response.ok:
