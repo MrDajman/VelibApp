@@ -248,7 +248,7 @@ def confirm_stations():
     first_point = route_line[0]
     last_point = route_line[-1]
 
-    target_lap_time = 25
+    target_lap_time = 27
     estimated_laps = math.ceil(time_route / float(target_lap_time))
 
     lap_change_points = []
@@ -261,17 +261,42 @@ def confirm_stations():
     print(first_point, last_point)
     print(time_route)
     print(estimated_laps)
+    
+    
+    # change points layer
+    
+    change_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
+    for point in lap_change_points:
+        print(point)
+        folium.Circle(point, 
+                color = "#000000", 
+                radius = 400,
+                fill = True).add_to(change_points_layer)
+    bounds = change_points_layer.get_bounds()
+       
+    ###
 
     start_coords = (48.855, 2.3433)
 
     folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
+    folium_map.add_child(change_points_layer)
     folium_map.add_child(stations_points_layer)
     folium_map.add_child(route_line_layer)
     
     map_div = folium_map._repr_html_()
     
-    return render_template("stationsmap.html", 
-                           map=map_div[96:])
+    if len(lap_change_points)>0:
+        folium_map.location = lap_change_points[0]
+    folium_map.fit_bounds(bounds)
+        
+    
+    map_div2 = folium_map._repr_html_()
+    
+    # return render_template("stationsmap.html", 
+    #                        map=map_div[96:])
+    return render_template("columnmap_2maps.html", 
+                           map1=map_div[96:],
+                           map2=map_div2[96:])
 
 
 def start_end_points_layer(start_location, end_location):
