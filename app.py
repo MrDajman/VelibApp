@@ -120,10 +120,13 @@ def end_station_choice():
     print(station_coords_split)
     if station_coords_split[0] == "True":
         print("Start location session")
-        session["start_station"] = (station_coords_split[1],station_coords_split[2])
-    if station_coords_split[0] != "True":
+        session["start_station"] = (station_coords_split[3],station_coords_split[4])
+    if station_coords_split[1] == "True":
         print("End location session")
-        session["end_station"] = (station_coords_split[1],station_coords_split[2])
+        session["end_station"] = (station_coords_split[3],station_coords_split[4])
+    if station_coords_split[2] == "True":
+        print("Change location session")
+        session["change_stations"].append((station_coords_split[3],station_coords_split[4]))
     print(station_coords)
     
     # # retrieve the coordinates from the queries
@@ -231,14 +234,16 @@ def confirm_stations():
     print(session["start_station"])
     print(session["end_station"])
     
-    stations_points_layer = velib_map_layer()
-    
     start_station = session["start_station"]
     end_station = session["end_station"]
     #print("Start station:")
     #print(start_station)
     [route_line, time_route] = calculate_route("fastest", reversed(start_station), reversed(end_station))
 
+    
+    # linestring_route = LineString(route_line)
+    # stations_points_layer = velib_map_layer(change_points_flag = True, choice_point = start_station, linestring = linestring_route)
+    
     route_line_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Route line</p>""")
 
     folium.PolyLine(route_line, color = "#0000FF", opacity = 1, control = False).add_to(route_line_layer)
@@ -257,6 +262,11 @@ def confirm_stations():
         lap_change_points.append(lap_change_point)
 
     print(lap_change_points)
+    
+    session["change_stations"] = []
+    linestring_route = LineString(route_line)
+    stations_points_layer = velib_map_layer(change_points_flag = True, choice_position = lap_change_points[0], linestring = linestring_route)
+    
 
     print(first_point, last_point)
     print(time_route)
@@ -272,7 +282,7 @@ def confirm_stations():
                 color = "#000000", 
                 radius = 400,
                 fill = True).add_to(change_points_layer)
-    bounds = change_points_layer.get_bounds()
+    bounds = stations_points_layer.get_bounds()
        
     ###
 
@@ -280,7 +290,6 @@ def confirm_stations():
 
     folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
     folium_map.add_child(change_points_layer)
-    folium_map.add_child(stations_points_layer)
     folium_map.add_child(route_line_layer)
     
     map_div = folium_map._repr_html_()
@@ -288,6 +297,7 @@ def confirm_stations():
     if len(lap_change_points)>0:
         folium_map.location = lap_change_points[0]
     folium_map.fit_bounds(bounds)
+    folium_map.add_child(stations_points_layer)
         
     
     map_div2 = folium_map._repr_html_()
@@ -532,7 +542,8 @@ def velib_and_route_map(plan_profile, start_point, end_point):
     return(map_div)
 
 
-def velib_map_layer(station_choice_start = False, station_choice_end = False, choice_position =(0,0)):
+def velib_map_layer(station_choice_start = False, station_choice_end = False, change_points_flag = False, choice_position =(0,0), linestring = ""):
+    #velib_map_layer(change_points_flag = 1, line = route_line)
 
     ### VELIB MAP ###
     
@@ -560,9 +571,10 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
 
     print("INFO[{}]:\tPrinting velib circles on the layer".format(datetime.now().time()))
     for station in r_station_information.json()["data"]["stations"]:
-        if station_choice_start or station_choice_end:
+        if station_choice_start or station_choice_end or change_points_flag:
+            print((station["lat"],station["lon"]), choice_position)
             distance_to_point = geopy.distance.distance((station["lat"],station["lon"]), choice_position).m
-            if distance_to_point > 1000:
+            if distance_to_point > 1200:
                 continue
 
 
@@ -580,9 +592,15 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
         if station_choice_end:
             distance_score = 1000 - distance_to_point
             dock_score = min(int(current_station_status["num_docks_available"])*2,10)
-            total_score = round(float(distance_score * dock_score)/100.0)
+            total_score = round(float(distance_score * dock_score)/100.0) # range 0 - 100
+        
+        if change_points_flag:
+            dist_line = Point((station["lat"],station["lon"])).distance(linestring) * 1000
+            distance_score = max(10-dist_line,0)
+            dock_score = min(int(current_station_status["num_docks_available"])*2,10)
+            total_score = round(float(distance_score * dock_score)) # range 0 - 100
 
-        if station_choice_start or station_choice_end:
+        if station_choice_start or station_choice_end or change_points_flag:
 
             popup_html = """<p>Name: {}</p>
                             <p>Station score: {}%</p>
@@ -593,7 +611,7 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
                             """.format(station["name"],
                                 total_score,
                                 url_for('end_station_choice'),
-                                str(station_choice_start)+",,"+str(station["lat"])+",,"+str(station["lon"]))
+                                str(station_choice_start)+",,"+str(station_choice_end)+",,"+str(change_points_flag)+",,"+str(station["lat"])+",,"+str(station["lon"]))
         # if station_choice_start:
         #     session["start_station"] = (station["lat"],station["lon"])
         # if station_choice_end:
@@ -648,6 +666,8 @@ def stations_map():
     folium.PolyLine(route_line, color = "#0000FF", opacity = 1, control = False).add_to(route_line_layer)
 
     linestring_route = LineString(route_line)
+    
+    #dist_all = Point((station["lat"],station["lon"])).distance(linestring_route) * 1000
 
     first_point = route_line[0]
     last_point = route_line[-1]
