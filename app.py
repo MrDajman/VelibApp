@@ -64,6 +64,7 @@ def location_query():
 @app.route('/stationchoice/', methods = ['POST'])
 def start_station_choice():
 
+    
     # retrieve queries from the html form
     start_location = request.form['start_locations']
     end_location = request.form['end_locations']
@@ -77,6 +78,7 @@ def start_station_choice():
     start_point = (start_lat, start_lon)
     end_point = (end_lat, end_lon)
     
+    session["start_end_choice_flag"] = 0
     session["start_point"] = start_point
     session["end_point"] = end_point
     
@@ -113,15 +115,17 @@ def start_station_choice():
 
 @app.route('/stationchoice2/', methods = ['POST'])
 def end_station_choice():
-
+    
     # retrieve queries from the html form
     station_coords = request.form['station_coords']
     station_coords_split = station_coords.split(",,")
     print(station_coords_split)
     if station_coords_split[0] == "True":
+        session["start_end_choice_flag"] += 1
         print("Start location session")
         session["start_station"] = (station_coords_split[3],station_coords_split[4])
     if station_coords_split[1] == "True":
+        session["start_end_choice_flag"] += 1
         print("End location session")
         session["end_station"] = (station_coords_split[3],station_coords_split[4])
     if station_coords_split[2] == "True":
@@ -129,44 +133,31 @@ def end_station_choice():
         session["change_stations"].append((station_coords_split[3],station_coords_split[4]))
     print(station_coords)
     
-    # # retrieve the coordinates from the queries
-    # start_lat = start_location.split(",,")[1]
-    # start_lon = start_location.split(",,")[2]
-    # end_lat = end_location.split(",,")[1]
-    # end_lon = end_location.split(",,")[2]
+    if session["start_end_choice_flag"] == 1:
+        html_out = """
+        <h1 style="text-align: center; padding: 70px 0;">Choose the second point =)</h1>
+        """
+        return(html_out)
     
-    # start_point = (start_lat, start_lon)
-    # end_point = (end_lat, end_lon)
-    
-    # # get velib layer
-    # stations_points_layer = velib_map_layer(station_choice = True, choice_position = start_point)
-    
-    # # create the map
-    # start_coords1 = start_point
-    # folium_map1 = folium.Map(location=start_coords1, zoom_start=16, tiles='cartodbpositron', height="100%")
-    # folium.Circle(start_point, 
-    #         color = "#00FF00", 
-    #         radius = 100,
-    #         fill = True).add_to(folium_map1)
-    # folium_map1.add_child(stations_points_layer)
-    # map_div1 = folium_map1._repr_html_()
-    
-    
-    # # start_coords2 = end_point
-    # # folium_map2 = folium.Map(location=start_coords2, zoom_start=16, tiles='cartodbpositron', height="100%")
-    # # folium.Circle(end_point, 
-    # #         color = "#FF0000", 
-    # #         radius = 100,
-    # #         fill = True).add_to(folium_map2)
-    # # folium_map2.add_child(stations_points_layer)
-    
-    # # map_div2 = folium_map2._repr_html_()
-    
-    # map_div1 = map_div1.replace("position: relative;","position: static;")
-    # # map_div2 = map_div2.replace("position: relative;","position: static;")
-    
-    # return render_template("columnmap_start_selection.html", map=map_div1[96:], focus_id = 2)
-    return("Start")
+    if session["start_end_choice_flag"] == 2:
+        html_out = """
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+        <!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">-->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+        </head>
+        <div style="text-align: center; padding: 70px 0;">
+        <form action = "{}" method = "post" target="_parent">
+        <input type="submit" class="btn btn-primary btn-lg" value="Select the locations"/>
+        </form>
+        </div>
+        """.format(url_for('confirm_stations'))
+        return(html_out)
 
 
 @app.route('/routeplanningmap/', methods = ['POST'])
