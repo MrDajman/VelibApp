@@ -115,11 +115,18 @@ def start_station_choice():
 
 @app.route('/stationchoice2/', methods = ['POST'])
 def end_station_choice():
+    print(session["random"])
+    print("ELOOOOOO!")
+    print("Session3", session["lap_change_points"])
     
+    html_out = "nothing"
     # retrieve queries from the html form
     station_coords = request.form['station_coords']
     station_coords_split = station_coords.split(",,")
-    print(station_coords_split)
+    #print(station_coords_split)
+    print("2222222222222222222222")
+    print(session["change_stations"])
+    print(session["lap_change_points"])
     if station_coords_split[0] == "True":
         session["start_end_choice_flag"] += 1
         print("Start location session")
@@ -129,15 +136,20 @@ def end_station_choice():
         print("End location session")
         session["end_station"] = (station_coords_split[3],station_coords_split[4])
     if station_coords_split[2] == "True":
+        session["start_end_choice_flag"] = 0
         print("Change location session")
         session["change_stations"].append((station_coords_split[3],station_coords_split[4]))
-    print(station_coords)
+        if len(session["change_stations"])<session["change_stations_nb"]:
+            [_, map_div] = create_single_change_map(session["lap_change_points"])
+            html_out = """
+            <div style="height: 100%">
+            """ + map_div[96:] + "</div>"
+    #print(station_coords)
     
     if session["start_end_choice_flag"] == 1:
         html_out = """
         <h1 style="text-align: center; padding: 70px 0;">Choose the second point =)</h1>
         """
-        return(html_out)
     
     if session["start_end_choice_flag"] == 2:
         html_out = """
@@ -157,8 +169,8 @@ def end_station_choice():
         </form>
         </div>
         """.format(url_for('confirm_stations'))
-        return(html_out)
-
+    
+    return(html_out)
 
 @app.route('/routeplanningmap/', methods = ['POST'])
 def route_planning_map():
@@ -220,61 +232,59 @@ def location_query_check():
                            end_list=end_list_to_html)
 
 
-@app.route('/confirmstations/', methods = ['POST'])
+@app.route('/confirmstationschanges/', methods = ['POST'])
 def confirm_stations():
-    print(session["start_station"])
-    print(session["end_station"])
+    print("CONFIRM STATIONS PAGE")
+    #print(session["start_station"])
+    #print(session["end_station"])
     
     start_station = session["start_station"]
     end_station = session["end_station"]
     #print("Start station:")
     #print(start_station)
     [route_line, time_route] = calculate_route("fastest", reversed(start_station), reversed(end_station))
-
     
-    # linestring_route = LineString(route_line)
-    # stations_points_layer = velib_map_layer(change_points_flag = True, choice_point = start_station, linestring = linestring_route)
-    
-    route_line_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Route line</p>""")
-
-    folium.PolyLine(route_line, color = "#0000FF", opacity = 1, control = False).add_to(route_line_layer)
-
-    linestring_route = LineString(route_line)
-
-    first_point = route_line[0]
-    last_point = route_line[-1]
-
     target_lap_time = 27
     estimated_laps = math.ceil(time_route / float(target_lap_time))
 
+    session["change_stations_nb"] = estimated_laps - 1
+    
     lap_change_points = []
     for i in range(estimated_laps-1):
         lap_change_point = route_line[int((len(route_line)/estimated_laps)*(i+1))]
         lap_change_points.append(lap_change_point)
 
-    print(lap_change_points)
+    #print(lap_change_points)
     
+    session["random"] ="SMILE =)"
     session["change_stations"] = []
-    linestring_route = LineString(route_line)
-    stations_points_layer = velib_map_layer(change_points_flag = True, choice_position = lap_change_points[0], linestring = linestring_route)
-    
+    #session["route_line"] = route_line
+    session["lap_change_points"] = lap_change_points
+    #print("ELOOOOOO!")
+    #print("Session1", session["lap_change_points"])
+    [map_div, map_div2] = create_single_change_map(lap_change_points)
 
-    print(first_point, last_point)
-    print(time_route)
-    print(estimated_laps)
     
+    return render_template("columnmap_2maps.html", 
+                           map1=map_div[96:],
+                           map2=map_div2[96:])
+
+
+def create_single_change_map(lap_change_points):
+    [route_line, _] = calculate_route("fastest", reversed(session["start_station"]), reversed(session["end_station"]))
     
+    linestring_route = LineString(route_line)
+    route_line_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Route line</p>""")
+    folium.PolyLine(route_line, color = "#0000FF", opacity = 1, control = False).add_to(route_line_layer)
+
     # change points layer
-    
     change_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
     for point in lap_change_points:
-        print(point)
+        #print(point)
         folium.Circle(point, 
                 color = "#000000", 
                 radius = 400,
                 fill = True).add_to(change_points_layer)
-    bounds = stations_points_layer.get_bounds()
-       
     ###
 
     start_coords = (48.855, 2.3433)
@@ -285,20 +295,27 @@ def confirm_stations():
     
     map_div = folium_map._repr_html_()
     
+    
+    
     if len(lap_change_points)>0:
-        folium_map.location = lap_change_points[0]
-    folium_map.fit_bounds(bounds)
-    folium_map.add_child(stations_points_layer)
+        #print("length")
+        #print(len(session["change_stations"]))
+        folium_map.location = lap_change_points[len(session["change_stations"])]
+        stations_points_layer = velib_map_layer(change_points_flag = True, choice_position = lap_change_points[len(session["change_stations"])], linestring = linestring_route)
+        bounds = stations_points_layer.get_bounds()
+        folium_map.fit_bounds(bounds)
+        folium_map.add_child(stations_points_layer)
+            
+        map_div2 = folium_map._repr_html_()
+    else:
+        map_div2 = "NO CHANGE POINTS ;)"
+    
+    
+    print("ELOOOOOO!")
+    print("Session2", session["lap_change_points"])
+    
+    return(map_div, map_div2)
         
-    
-    map_div2 = folium_map._repr_html_()
-    
-    # return render_template("stationsmap.html", 
-    #                        map=map_div[96:])
-    return render_template("columnmap_2maps.html", 
-                           map1=map_div[96:],
-                           map2=map_div2[96:])
-
 
 def start_end_points_layer(start_location, end_location):
     
@@ -322,7 +339,7 @@ def start_end_points_layer(start_location, end_location):
     end_list_to_html = []
 
     if api == 2:
-        print(start_json["features"])
+        #print(start_json["features"])
         if len(start_json["features"]) == 0:
             print("No coordinates found that correspond to the given location")
         else:
@@ -362,9 +379,9 @@ def start_end_points_layer(start_location, end_location):
             print("No coordinates found that correspond to the given location")
         else:
             for data in start_json["data"]:
-                print()
-                print(data)
-                print()
+                #print()
+                #print(data)
+                #print()
                 #print(data["data"])
                 lat = data["latitude"]
                 lon = data["longitude"]
@@ -420,11 +437,11 @@ def velib_and_route_map(plan_profile, start_point, end_point):
         lap_change_point = route_line[int((len(route_line)/estimated_laps)*(i+1))]
         lap_change_points.append(lap_change_point)
 
-    print(lap_change_points)
-
-    print(first_point, last_point)
-    print(time_route)
-    print(estimated_laps)
+    #print(lap_change_points)
+#
+    #print(first_point, last_point)
+    #print(time_route)
+    #print(estimated_laps)
 
     ### VELIB MAP ###
 
@@ -563,7 +580,7 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
     print("INFO[{}]:\tPrinting velib circles on the layer".format(datetime.now().time()))
     for station in r_station_information.json()["data"]["stations"]:
         if station_choice_start or station_choice_end or change_points_flag:
-            print((station["lat"],station["lon"]), choice_position)
+            #print((station["lat"],station["lon"]), choice_position)
             distance_to_point = geopy.distance.distance((station["lat"],station["lon"]), choice_position).m
             if distance_to_point > 1200:
                 continue
@@ -592,7 +609,8 @@ def velib_map_layer(station_choice_start = False, station_choice_end = False, ch
             total_score = round(float(distance_score * dock_score)) # range 0 - 100
 
         if station_choice_start or station_choice_end or change_points_flag:
-
+            #print("ELOOOOOO!")
+            #print("Session4", session["lap_change_points"])
             popup_html = """<p>Name: {}</p>
                             <p>Station score: {}%</p>
                             <form action = "{}" method = "post">
@@ -697,12 +715,12 @@ def stations_map():
     stations_status = r_station_status.json()["data"]["stations"]
 
     x = [station_status for station_status in stations_status if station_status["station_id"]==516709288]
-    print(x)
+    #print(x)
 
     start_coords = (48.855, 2.3433)
     stations_points_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
 
-    print(r_station_information.json()["data"]["stations"][0])
+    #print(r_station_information.json()["data"]["stations"][0])
     
     start_list = []
     end_list = []
@@ -809,7 +827,7 @@ def calculate_route(plan_profile, start_point, end_point):
     if res != 1:
         return "Error!"
 
-    print(r.json())
+    #print(r.json())
     
     l1 = r.json()["marker"][0]["@attributes"]["coordinates"]
     l2 = list(l1.split(" "))
@@ -834,12 +852,12 @@ def get_location(location_string):
     print(r.url)
     res = check_response(r)
     print(r)
-    print(r.json())
+    #print(r.json())
     print(res)
     # print(r)
     if res != 1:
         return "Error!"
-    print(r.json())
+    #print(r.json())
     #exit()
     return(r.json())
 
@@ -854,12 +872,12 @@ def get_location2(location_string):
     print(r.url)
     res = check_response(r)
     print(r)
-    print(r.json())
+    #print(r.json())
     print(res)
     # print(r)
     if res != 1:
         return "Error!"
-    print(r.json())
+    #print(r.json())
     #exit()
     return(r.json())
     
