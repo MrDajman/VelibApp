@@ -115,18 +115,17 @@ def start_station_choice():
 
 @app.route('/stationchoice2/', methods = ['POST'])
 def end_station_choice():
-    print(session["random"])
-    print("ELOOOOOO!")
-    print("Session3", session["lap_change_points"])
+    # print(session["random"])
+    # print("ELOOOOOO!")
+    # print("Session3", session["lap_change_points"])
     
     html_out = "nothing"
     # retrieve queries from the html form
     station_coords = request.form['station_coords']
     station_coords_split = station_coords.split(",,")
     #print(station_coords_split)
-    print("2222222222222222222222")
-    print(session["change_stations"])
-    print(session["lap_change_points"])
+    # print(session["change_stations"])
+    # print(session["lap_change_points"])
     if station_coords_split[0] == "True":
         session["start_end_choice_flag"] += 1
         print("Start location session")
@@ -138,6 +137,7 @@ def end_station_choice():
     if station_coords_split[2] == "True":
         session["start_end_choice_flag"] = 0
         print("Change location session")
+        # appending change stations locations
         session["change_stations"].append((station_coords_split[3],station_coords_split[4]))
         if len(session["change_stations"])<session["change_stations_nb"]:
             [_, map_div] = create_single_change_map(session["lap_change_points"])
@@ -169,8 +169,73 @@ def end_station_choice():
         </form>
         </div>
         """.format(url_for('confirm_stations'))
+        
+    if html_out == "nothing":
+        html_out = """
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+        <!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">-->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+        </head>
+        <div style="text-align: center; padding: 70px 0;">
+        <form action = "{}" method = "post" target="_top">
+        <input type="submit" class="btn btn-primary btn-lg" value="Recalculate the track with new points"/>
+        </form>
+        <br>
+        
+        <form action = "{}" method = "post" target="_top">
+        <input type="submit" class="btn btn-primary btn-lg" value="Use the track on the left"/>
+        </form>
+        </div>
+        """.format(url_for('final_track_simple'),url_for('final_track_simple'))
     
     return(html_out)
+
+
+@app.route('/finaltracksimple/', methods = ['POST'])
+def final_track_simple():
+
+    
+    [route_line, _] = calculate_route("fastest", reversed(session["start_station"]), reversed(session["end_station"]))
+    
+    linestring_route = LineString(route_line)
+    route_line_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Route line</p>""")
+    folium.PolyLine(route_line, color = "#0000FF", opacity = 1, control = False).add_to(route_line_layer)
+
+    # change points layer
+    change_stations_layer = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
+    for point in session["change_stations"]:
+        #print(point)
+        folium.Circle(point, 
+                color = "#0033EE", 
+                radius = 150,
+                fill = True).add_to(change_stations_layer)
+    ###
+    
+    folium.Circle(session["start_station"], 
+                color = "#00FF00", 
+                radius = 150,
+                fill = True).add_to(change_stations_layer)
+    folium.Circle(session["end_station"], 
+                color = "#FF0000", 
+                radius = 150,
+                fill = True).add_to(change_stations_layer)
+    
+    start_coords = (48.855, 2.3433)
+
+    folium_map = folium.Map(location=start_coords, zoom_start=12, tiles='cartodbpositron', height="100%")
+    folium_map.add_child(change_stations_layer)
+    folium_map.add_child(route_line_layer)
+    
+    map_div = folium_map._repr_html_()
+    
+    return render_template("stationsmap.html", map=map_div[96:], focus_id = 2)
+
 
 @app.route('/routeplanningmap/', methods = ['POST'])
 def route_planning_map():
